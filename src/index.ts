@@ -29,6 +29,8 @@ async function main() {
       // Fullstack
       fullstack(projectName);
     }
+    console.log("Created by Ak-ZeRo");
+    console.log("https://github.com/Ak-ZeRo-Dev");
   } catch (error) {
     console.error(error);
   }

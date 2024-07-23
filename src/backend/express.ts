@@ -2,7 +2,17 @@ import { execSync } from "child_process";
 import fs from "fs";
 import inquirer from "inquirer";
 import path from "path";
-import { backendFolders, backendQuestions, expressTsFiles } from "../config";
+import {
+  backendFolders,
+  backendQuestions,
+  env_path,
+  expressTsFiles,
+  isNo,
+  isYes,
+  matches,
+  secrets,
+} from "../config";
+import { createSecretKey } from "../secret-key";
 
 async function tsConfig() {
   const tsConfigAnswers = await inquirer.prompt(backendQuestions.ts_config);
@@ -34,13 +44,34 @@ async function setupCloudinary() {
   const cloudinaryAnswers = await inquirer.prompt(backendQuestions.cloudinary);
   return cloudinaryAnswers.cloudinary;
 }
+async function setupEnv() {
+  const envAnswers = await inquirer.prompt(backendQuestions.createEnv);
+  return envAnswers.createEnv;
+}
+async function setupSecret() {
+  const secretAnswers = await inquirer.prompt(backendQuestions.createSecret);
+  return secretAnswers.createSecret;
+}
+async function setupSecretLen() {
+  const lenAnswers = await inquirer.prompt(backendQuestions.secretLen);
+  return lenAnswers.secretLen;
+}
 
 export async function setupExpress(projectName: string) {
   console.log(`Setting up Express in ${projectName}...`);
   const tsChoice = await tsConfig();
-  const srcChoice = await src();
   const libsChoice = await installDefaultLibs();
+  const srcChoice = await src();
   const filesChoice = await copyDefaultFiles();
+  const envChoice = await setupEnv();
+  let lenChoice: number = 0;
+  let secretChoice: any = "";
+  if (isYes(envChoice)) {
+    secretChoice = await setupSecret();
+    if (isYes(secretChoice)) {
+      lenChoice = parseInt(await setupSecretLen());
+    }
+  }
   const databaseChoice = await setupDatabase();
   const redisChoice = await setupRedis();
   const cloudinaryChoice = await setupCloudinary();
@@ -60,154 +91,17 @@ export async function setupExpress(projectName: string) {
     databaseChoice,
     redisChoice,
     cloudinaryChoice,
+    envChoice,
+    secretChoice,
+    lenChoice,
     projectPath
   );
   setupDatabase();
 
   console.log("Express setup completed!");
 }
-
-function setupFiles(
-  filesChoice: any,
-  srcChoice: any,
-  tsChoice: any,
-  databaseChoice: any,
-  redisChoice: any,
-  cloudinaryChoice: any,
-  projectPath: string
-) {
-  if (filesChoice.toLowerCase() === "yes") {
-    let dist;
-    if (srcChoice.toLowerCase() === "yes") {
-      dist = path.join(projectPath, "src");
-    } else {
-      dist = projectPath;
-    }
-
-    let files;
-    if (tsChoice.toLowerCase() === "yes") {
-      files = expressTsFiles.ts;
-    } else {
-      files = expressTsFiles.js;
-    }
-
-    files.main.forEach((file: string) => {
-      fs.copyFile(
-        path.join(__dirname, "../../public", file),
-        path.join(dist, file),
-        (err) => {
-          if (err) throw new Error(`Error copying file: ${err}`);
-        }
-      );
-    });
-
-    Object.keys(files)
-      .filter((folder: string) => folder !== "main" && folder !== "config")
-      .forEach((folder: string) => {
-        files[folder].forEach((file: string) => {
-          fs.copyFile(
-            path.join(__dirname, "../../public", folder, file),
-            path.join(dist, folder, file),
-            (err) => {
-              if (err) throw new Error(`Error copying file: ${err}`);
-            }
-          );
-        });
-      });
-
-    fs.copyFile(
-      path.join(__dirname, "../../public/config/.env"),
-      path.join(dist, "config/.env"),
-      (err) => {
-        if (err) throw new Error(`Error copying file: ${err}`);
-      }
-    );
-
-    const database = databaseChoice.toLowerCase() === "mongodb";
-    const redis = redisChoice.toLowerCase() === "yes";
-    const cloudinary = cloudinaryChoice.toLowerCase() === "yes";
-
-    if (database) {
-      const file = files.config.find(
-        (file: string) => file.split(".")[0] === "db"
-      );
-      fs.copyFile(
-        path.join(__dirname, "../../public/config", file),
-        path.join(dist, "config", file),
-        (err) => {
-          if (err) throw new Error(`Error copying file: ${err}`);
-        }
-      );
-    }
-    if (redis) {
-      const file = files.config.find(
-        (file: string) => file.split(".")[0] === "redis"
-      );
-      fs.copyFile(
-        path.join(__dirname, "../../public/config", file),
-        path.join(dist, "config", file),
-        (err) => {
-          if (err) throw new Error(`Error copying file: ${err}`);
-        }
-      );
-    }
-    if (cloudinary) {
-      const file = files.config.find(
-        (file: string) => file.split(".")[0] === "cloudinary"
-      );
-      fs.copyFile(
-        path.join(__dirname, "../../public/config", file),
-        path.join(dist, "config", file),
-        (err) => {
-          if (err) throw new Error(`Error copying file: ${err}`);
-        }
-      );
-    }
-  }
-}
-
-function setupSrc(srcChoice: any, tsChoice: any, projectPath: string): void {
-  if (srcChoice.toLowerCase() === "no") {
-    if (tsChoice.toLowerCase() === "yes") {
-      execSync("touch server.ts app.ts", {
-        cwd: projectPath,
-        stdio: "inherit",
-      });
-    } else {
-      execSync("touch server.js app.js", {
-        cwd: projectPath,
-        stdio: "inherit",
-      });
-    }
-  } else {
-    execSync("mkdir src", {
-      cwd: projectPath,
-      stdio: "inherit",
-    });
-
-    backendFolders.forEach((folder) =>
-      execSync(`mkdir ${folder}`, {
-        cwd: path.join(projectPath, "src"),
-        stdio: "inherit",
-      })
-    );
-
-    if (tsChoice.toLowerCase() === "yes") {
-      execSync("touch server.ts app.ts", {
-        cwd: path.join(projectPath, "src"),
-        stdio: "inherit",
-      });
-    } else {
-      execSync("touch server.js app.js", {
-        cwd: path.join(projectPath, "src"),
-        stdio: "inherit",
-      });
-    }
-  }
-}
-
 async function setupTs(tsChoice: any, projectPath: string): Promise<void> {
-  if (tsChoice.toLowerCase() === "yes") {
+  if (isYes(tsChoice)) {
     execSync("npm install -D @types/node typescript ts-node @types/express", {
       cwd: projectPath,
       stdio: "inherit",
@@ -228,7 +122,7 @@ async function setupTs(tsChoice: any, projectPath: string): Promise<void> {
 }
 
 function setupLibs(libsChoice: any, tsChoice: any, projectPath: string): void {
-  if (libsChoice.toLowerCase() === "yes") {
+  if (isYes(libsChoice)) {
     execSync(
       "npm install bcrypt cookie-parser cors dotenv ejs express ioredis jsonwebtoken mongoose nodemailer",
       {
@@ -237,7 +131,7 @@ function setupLibs(libsChoice: any, tsChoice: any, projectPath: string): void {
       }
     );
 
-    if (tsChoice.toLowerCase() === "yes") {
+    if (isYes(tsChoice)) {
       execSync(
         "npm install --save-dev @types/bcrypt @types/cookie-parser @types/cors @types/dotenv @types/ejs  @types/ioredis @types/jsonwebtoken @types/mongoose @types/nodemailer",
         {
@@ -246,6 +140,136 @@ function setupLibs(libsChoice: any, tsChoice: any, projectPath: string): void {
         }
       );
     }
+  }
+}
+
+async function setupFiles(
+  filesChoice: any,
+  srcChoice: any,
+  tsChoice: any,
+  databaseChoice: any,
+  redisChoice: any,
+  cloudinaryChoice: any,
+  envChoice: any,
+  secretChoice: any,
+  lenChoice: any,
+  projectPath: string
+) {
+  if (isYes(filesChoice)) {
+    let dist;
+    if (isYes(srcChoice)) {
+      dist = path.join(projectPath, "src");
+    } else {
+      dist = projectPath;
+    }
+
+    let files;
+    if (isYes(tsChoice)) {
+      files = expressTsFiles.ts;
+    } else {
+      files = expressTsFiles.js;
+    }
+
+    let publicPath;
+    if (isYes(tsChoice)) {
+      publicPath = path.join(__dirname, "../../public/ts");
+    } else {
+      publicPath = path.join(__dirname, "../../public/js");
+    }
+
+    ensureDirExists(dist);
+    ensureDirExists(publicPath);
+
+    files.main.forEach((file: string) => {
+      fs.copyFile(path.join(publicPath, file), path.join(dist, file), (err) => {
+        if (err) throw new Error(`Error copying file: ${err}`);
+      });
+    });
+
+    Object.keys(files)
+      .filter((folder: string) => folder !== "main" && folder !== "config")
+      .forEach((folder: string) => {
+        files[folder].forEach((file: string) => {
+          fs.copyFile(
+            path.join(publicPath, folder, file),
+            path.join(dist, folder, file),
+            (err) => {
+              if (err) throw new Error(`Error copying file: ${err}`);
+            }
+          );
+        });
+      });
+
+    if (isYes(envChoice) && isYes(secretChoice)) {
+      setupEnvFile(dist, parseInt(lenChoice));
+    }
+
+    const database = matches(databaseChoice, "mongodb");
+    const redis = isYes(redisChoice);
+    const cloudinary = isYes(cloudinaryChoice);
+
+    if (database) {
+      const file = files.config.find(
+        (file: string) => file.split(".")[0] === "db"
+      );
+      fs.copyFile(
+        path.join(publicPath, "config", file),
+        path.join(dist, "config", file),
+        (err) => {
+          if (err) throw new Error(`Error copying file: ${err}`);
+        }
+      );
+    }
+    if (redis) {
+      const file = files.config.find(
+        (file: string) => file.split(".")[0] === "redis"
+      );
+      fs.copyFile(
+        path.join(publicPath, "config", file),
+        path.join(dist, "config", file),
+        (err) => {
+          if (err) throw new Error(`Error copying file: ${err}`);
+        }
+      );
+    }
+    if (cloudinary) {
+      const file = files.config.find(
+        (file: string) => file.split(".")[0] === "cloudinary"
+      );
+      fs.copyFile(
+        path.join(publicPath, "config", file),
+        path.join(dist, "config", file),
+        (err) => {
+          if (err) throw new Error(`Error copying file: ${err}`);
+        }
+      );
+    }
+  }
+}
+
+function setupSrc(srcChoice: any, tsChoice: any, projectPath: string): void {
+  let dist: string;
+
+  if (isNo(srcChoice)) {
+    dist = projectPath;
+  } else {
+    dist = path.join(projectPath, "src");
+    ensureDirExists(dist);
+    backendFolders.forEach((folder) =>
+      ensureDirExists(path.join(dist, folder))
+    );
+  }
+
+  if (isYes(tsChoice)) {
+    execSync("touch server.ts app.ts", {
+      cwd: dist,
+      stdio: "inherit",
+    });
+  } else {
+    execSync("touch server.js app.js", {
+      cwd: dist,
+      stdio: "inherit",
+    });
   }
 }
 
@@ -279,3 +303,57 @@ function editPackageFile(
     });
   });
 }
+
+function setupEnvFile(dist: string, secretLen: number) {
+  const envFilePath = path.join(__dirname, "../../public/.env");
+
+  fs.readFile(envFilePath, "utf8", (err, data) => {
+    if (err) {
+      console.error("Error reading .env file:", err);
+      return;
+    }
+
+    const lines = data.split("\n");
+    const existingKeys = new Set<string>();
+
+    const updatedLines = lines.map((line) => {
+      // Check if the line starts with any of the secret keys
+      const secret = secrets.find((key: string) =>
+        line.toLowerCase().startsWith(key.toLowerCase())
+      );
+
+      if (secret) {
+        existingKeys.add(secret);
+        return `"${secret}=${createSecretKey(secretLen)}"`;
+      }
+
+      // If no secret key is found, return the original line
+      return line;
+    });
+
+    secrets.forEach((key) => {
+      if (!existingKeys.has(key)) {
+        updatedLines.push(`${key}=${createSecretKey(secretLen)}`);
+      }
+    });
+
+    fs.writeFile(
+      path.join(dist, env_path),
+      updatedLines.join("\n"),
+      "utf8",
+      (err) => {
+        if (err) {
+          console.error("Error writing to .env file:", err);
+        } else {
+          console.log(".env file updated successfully.");
+        }
+      }
+    );
+  });
+}
+
+const ensureDirExists = (dir: string) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};

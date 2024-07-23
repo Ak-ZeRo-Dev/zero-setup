@@ -14,6 +14,7 @@ export const database = {
   postgreSQL: "PostgreSQL",
   sqlight: "SQLite",
   sql: "SQL",
+  none: "None",
 };
 
 export const react_options = {
@@ -28,11 +29,22 @@ export const backend_framework = {
 };
 
 export const folders = ["client", "server"];
+export const env_path = "config/.env";
+export const secrets = [
+  "COOKIE_SECRET",
+  "JWT_ACCESS_KEY",
+  "JWT_REFRESH_KEY",
+  "JWT_ACTIVATION_SECRET",
+  "JWT_UPDATE_EMAIL_SECRET",
+  "JWT_UPDATE_PASSWORD_SECRET",
+  "JWT_DELETE_SECRET",
+  "JWT_FORGOT_SECRET",
+];
 
 export const expressTsFiles: any = {
   ts: {
     main: ["server.ts", "app.ts"],
-    config: [".env", "cloudinary.ts", "db.ts", "redis.ts"],
+    config: ["cloudinary.ts", "db.ts", "redis.ts"],
     middlewares: [
       "auth.ts",
       "catchAsyncErrors.ts",
@@ -43,7 +55,7 @@ export const expressTsFiles: any = {
   },
   js: {
     main: ["server.js", "app.js"],
-    config: [".env", "cloudinary.js", "db.js", "redis.js"],
+    config: ["cloudinary.js", "db.js", "redis.js"],
     middlewares: [
       "auth.js",
       "catchAsyncErrors.js",
@@ -143,7 +155,7 @@ export const backendQuestions: any = {
     {
       type: "list",
       name: "redis",
-      message: "Would you like to Redis?",
+      message: "Would you like to use Redis?",
       choices: ["Yes", "No"],
       default: "Yes",
     },
@@ -152,9 +164,35 @@ export const backendQuestions: any = {
     {
       type: "list",
       name: "cloudinary",
-      message: "Would you like to Cloudinary?",
+      message: "Would you like to use Cloudinary?",
       choices: ["Yes", "No"],
       default: "Yes",
+    },
+  ],
+  createEnv: [
+    {
+      type: "list",
+      name: "createEnv",
+      message: "Would you like to create env file?",
+      choices: ["Yes", "No"],
+      default: "Yes",
+    },
+  ],
+  createSecret: [
+    {
+      type: "list",
+      name: "createSecret",
+      message: "Would you like to create default secret keys?",
+      choices: ["Yes", "No"],
+      default: "Yes",
+    },
+  ],
+  secretLen: [
+    {
+      type: "input",
+      name: "secretLen",
+      message: "What length of secret key would you like?",
+      default: "68",
     },
   ],
 };
@@ -212,3 +250,13 @@ export const questions: any = {
     },
   ],
 };
+
+export function matches(expectedValue: string, actualValue: string) {
+  return expectedValue.toLowerCase() === actualValue;
+}
+export function isYes(expectedValue: string) {
+  return expectedValue.toLowerCase() === "yes";
+}
+export function isNo(expectedValue: string) {
+  return expectedValue.toLowerCase() === "no";
+}

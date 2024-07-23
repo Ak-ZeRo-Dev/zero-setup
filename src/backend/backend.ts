@@ -5,6 +5,7 @@ import { setupNestjs } from "./nestjs";
 import { setupDjango } from "./django";
 
 export async function backend(projectName: string) {
+  console.log("Setting up Backend");
   const backendAnswers = await inquirer.prompt(
     backendQuestions.backend_framework
   );
