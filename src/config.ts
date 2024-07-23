@@ -147,6 +147,7 @@ export const backendQuestions: any = {
         database.postgreSQL,
         database.sqlight,
         database.sql,
+        database.none,
       ],
       default: database.mongodb,
     },
